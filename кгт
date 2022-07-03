@@ -1,0 +1,19 @@
+OUT_DIR="streaming_wc_result"
+NUM_REDUCERS=8
+
+hadoop fs -rm -r -skipTrash $OUT_DIR*  # удаляем результаты предыдущего запуска (HDFS не перезаписывает данные поэтому без удаления выдаст ошибку о том, что путь занят).
+
+yarn jar /opt/cloudera/parcels/CDH/lib/hadoop-mapreduce/hadoop-streaming.jar \  # подключаем jar-файл с инструментами Hadoop Streaming
+    -D mapreduce.job.reduces=${NUM_REDUCERS} \  # устанавливаем кол-во reducer'ов в задаче
+    -files mapper.py,reducer.py \  # добавляем файлы в distributed cache чтоб каждая нода имела к ним доступ
+    -mapper mapper.py \  # для такой записи файлы должны быть исполняемыми
+    -reducer reducer.py \  # в противном случае пишем `python mapper.py`, `bash mapper.py` в зависимости о того, на чём написан код.
+    -input /data/wiki/en_articles_part \  # входны и выходные данные
+    -output $OUT_DIR # относительный путь (= /user/par2018XX/${OUT_DIR})
+
+# Проверка результата.
+# Каждый reducer генерирует вывод в свой файл. Файлы имеют вид `part-XXXXX`.
+for num in `seq 0 $(($NUM_REDUCERS - 1))`
+do
+    hdfs dfs -cat ${OUT_DIR}/part-0000$num | head  # Выводим 1-е 10 строк из каждого файла.
+done
